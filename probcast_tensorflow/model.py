@@ -30,44 +30,49 @@ class ProbCast():
         y: np.array.
             Target time series, array with shape (samples, targets) where samples is the length of the
             time series and targets is the number of target time series.
+            目标时间序列，带形状的数组(样本，目标)其中样本是的长度时间序列和目标是目标时间序列的数目。
 
         sequence_length: int.
-            Number of past time steps to use as input.
+            Number of past time steps to use as input.用作输入的过去时间步数
 
         forecast_length: int.
-            Number of future time steps to forecast.
+            Number of future time steps to forecast.要预测的未来时间步数
 
         quantiles: list.
-            Quantiles of target time series to forecast.
+            Quantiles of target time series to forecast.要预测的目标时间序列的五分位数
 
         generator_gru_units: list.
             The length of the list is the number of GRU layers in the generator, the items in the list are
             the number of hidden units of each layer.
+            列表的长度是生成器中GRU层的数量，列表中的项目有每层的隐藏单元数。
 
         generator_dense_units: int.
-            Number of hidden units of the dense layer in the generator.
+            Number of hidden units of the dense layer in the generator.生成器中密集层的隐藏单元数。
 
         discriminator_gru_units: list.
             The length of the list is the number of GRU layers in the discriminator, the items in the list
             are the number of hidden units of each layer.
+            列表的长度是鉴别器中的GRU层数，列表中的项目是每层的隐藏单元数。
 
         discriminator_dense_units: int.
-            Number of hidden units of the dense layer in the discriminator.
+            Number of hidden units of the dense layer in the discriminator.鉴别器中密集层的隐藏单元数。
 
         noise_dimension: int.
             Dimension of the noise vector concatenated to the outputs of the GRU block in the generator.
+            连接到发生器中GRU模块输出的噪声向量的维度。
 
         noise_dispersion: float.
             Standard deviation of the noise vector concatenated to the outputs of the GRU block in the generator.
+            连接到发生器中GRU模块输出的噪声矢量的标准差。
         '''
 
-        # Extract the quantiles.
-        quantiles = np.unique(np.array(quantiles))
+        # Extract the quantiles.提取五分之一
+        quantiles = np.unique(np.array(quantiles))#对一维数组或列表unique去除其中重复的元素，按元素由小到大返回新的无元素重复的元组或列表
         if 0.5 not in quantiles:
             quantiles = np.sort(np.append(0.5, quantiles))
 
-        # Scale the targets.
-        mu, sigma = np.mean(y, axis=0), np.std(y, axis=0)
+        # Scale the targets.缩放目标
+        mu, sigma = np.mean(y, axis=0), np.std(y, axis=0)#计算沿指定轴的标准差。返回数组元素的标准差
         y = (y - mu) / sigma
 
         # Save the inputs.
@@ -83,8 +88,8 @@ class ProbCast():
         self.noise_dimension = noise_dimension
         self.noise_dispersion = noise_dispersion
         self.quantiles = quantiles
-        self.samples = y.shape[0]
-        self.targets = y.shape[1]
+        self.samples = y.shape[0]#y的行数
+        self.targets = y.shape[1]#y的列数
 
     def fit(self,
             learning_rate=0.001,
@@ -108,6 +113,7 @@ class ProbCast():
 
         verbose: bool.
             True if the training history should be printed in the console, False otherwise.
+            如果应该在控制台中打印训练历史记录，则为True，否则为False。
         '''
 
         # Build the models.
@@ -126,64 +132,64 @@ class ProbCast():
             model_dimension=self.targets
         )
 
-        # Instantiate the optimizers.
+        # Instantiate the optimizers.实例化优化器
         generator_optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
         discriminator_optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
 
         # Define the training loop.
         @tf.function
         def train_step(data):
-            with tf.GradientTape() as generator_tape, tf.GradientTape() as discriminator_tape:
+            with tf.GradientTape() as generator_tape, tf.GradientTape() as discriminator_tape:#自动求导
 
-                # Extract the input sequences and target values.
-                inputs = tf.cast(data[:, :-1, :], dtype=tf.float32)
-                targets = tf.cast(data[:, -1:, :], dtype=tf.float32)
+                # Extract the input sequences and target values.提取输入序列和目标值
+                inputs = tf.cast(data[:, :-1, :], dtype=tf.float32)#取到最后一列，不包含最后一列
+                targets = tf.cast(data[:, -1:, :], dtype=tf.float32)#取最后一列
 
-                # Generate the noise vector.
-                noise = tf.random.normal(
-                    mean=0.0,
-                    stddev=self.noise_dispersion,
-                    shape=(data.shape[0], self.noise_dimension)
+                # Generate the noise vector.生成噪声向量
+                noise = tf.random.normal(#正态分布
+                    mean=0.0,#均值
+                    stddev=self.noise_dispersion,#标准差
+                    shape=(data.shape[0], self.noise_dimension)#形状
                 )
 
-                # Generate the model predictions.
+                # Generate the model predictions.生成模型预测
                 predictions = generator_model([inputs, noise])
-                predictions = tf.reshape(predictions, shape=(data.shape[0], 1, self.targets))
+                predictions = tf.reshape(predictions, shape=(data.shape[0], 1, self.targets))#self.targets = y.shape[1]#y的列数
 
-                # Pass the actual sequences and the predicted sequences to the discriminator.
+                # Pass the actual sequences and the predicted sequences to the discriminator.将实际序列和预测序列传递给鉴别器
                 prob_targets = discriminator_model(tf.concat([inputs, targets], axis=1))
                 prob_predictions = discriminator_model(tf.concat([inputs, predictions], axis=1))
 
-                # Calculate the loss.
+                # Calculate the loss.计算损失
                 g = generator_loss(targets, predictions, prob_predictions)
                 d = discriminator_loss(prob_targets, prob_predictions)
 
-            # Calculate the gradient.
-            dg = generator_tape.gradient(g, generator_model.trainable_variables)
+            # Calculate the gradient.计算梯度
+            dg = generator_tape.gradient(g, generator_model.trainable_variables)#计算g对于generator_model的所有可训练变量的梯度
             dd = discriminator_tape.gradient(d, discriminator_model.trainable_variables)
 
-            # Update the weights.
-            generator_optimizer.apply_gradients(zip(dg, generator_model.trainable_variables))
+            # Update the weights.更新权重
+            generator_optimizer.apply_gradients(zip(dg, generator_model.trainable_variables))#根据dg来优化generator_model的变量
             discriminator_optimizer.apply_gradients(zip(dd, discriminator_model.trainable_variables))
 
             return g, d
 
-        # Generate the training batches.
-        dataset = tf.keras.utils.timeseries_dataset_from_array(
+        # Generate the training batches.生成训练批次
+        dataset = tf.keras.utils.timeseries_dataset_from_array(#在以数组形式提供的时间序列上创建一个滑动窗口的数据集
             data=self.y,
             targets=None,
             sequence_length=self.sequence_length + 1,
             batch_size=batch_size
         )
 
-        # Train the model.
+        # Train the model.训练模型
         for epoch in range(epochs):
             for data in dataset:
                 g, d = train_step(data)
             if verbose:
                 print('Epoch: {}  Generator Loss: {:.8f}  Discriminator Loss: {:.8f}'.format(1 + epoch, g, d))
 
-        # Save the model.
+        # Save the model.保存模型
         self.model = generator_model
 
     def forecast(self, y, samples=100):
