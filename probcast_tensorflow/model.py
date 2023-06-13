@@ -196,25 +196,24 @@ class ProbCast():
 
         '''
         Generate the forecasts.
-
         Parameters:
-        __________________________________
+       ________________________________
         y: np.array.
-            Past values of the time series.
-            
+            Past values of the time series.时间序列的过去值
         samples: int.
-            The number of samples to generate for estimating the quantiles.
+            The number of samples to generate for estimating the quantiles.为估计分位数而生成的样本数
 
         Returns:
         __________________________________
         df: pd.DataFrame.
             Data frame including the actual values of the time series and the predicted quantiles.
+            包括时间序列的实际值和预测分位数的数据帧。
         '''
 
-        # Scale the targets.
+        # Scale the targets.缩放目标
         y = (y - self.mu) / self.sigma
         
-        # Generate the forecasts.
+        # Generate the forecasts.生成预测
         outputs = np.zeros(shape=(samples, self.forecast_length, self.targets))
 
         noise = np.random.normal(
@@ -224,7 +223,7 @@ class ProbCast():
         )
 
         inputs = y[- self.sequence_length:, :]
-        inputs = inputs.reshape(1, self.sequence_length, self.targets)
+        inputs = inputs.reshape(1, self.sequence_length, self.targets)#1行，每行self.sequence_length行，self.targets列
         inputs = np.repeat(inputs, samples, axis=0)
 
         for i in range(self.forecast_length):
