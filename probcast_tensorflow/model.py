@@ -230,13 +230,13 @@ class ProbCast():
             outputs[:, i, :] = self.model([inputs, noise[:, i, :]]).numpy()
             inputs = np.append(inputs[:, 1:, :], outputs[:, i, :].reshape(samples, 1, self.targets), axis=1)
 
-        # Organize the forecasts in a data frame.
+        # Organize the forecasts in a data frame.在数据框中组织预测
         columns = ['time_idx']
-        columns.extend(['target_' + str(i + 1) for i in range(self.targets)])
+        columns.extend(['target_' + str(i + 1) for i in range(self.targets)])#用于在列表末尾一次性追加另一个序列中的多个值（用新列表扩展原来的列表）
         columns.extend(['target_' + str(i + 1) + '_' + str(self.quantiles[j]) for i in range(self.targets) for j in range(len(self.quantiles))])
 
         df = pd.DataFrame(columns=columns)
-        df['time_idx'] = np.arange(self.samples + self.forecast_length)
+        df['time_idx'] = np.arange(self.samples + self.forecast_length)#返回一个有终点和起点的固定步长的排列
 
         for i in range(self.targets):
             df['target_' + str(i + 1)].iloc[: - self.forecast_length] = self.mu[i] + self.sigma[i] * self.y[:, i]
